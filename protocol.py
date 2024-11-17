@@ -2,6 +2,57 @@ import qrcode  # Library to generate QR codes
 import tkinter as tk  # Tkinter library for creating GUI windows
 from PIL import ImageTk  # Provides ImageTk for displaying images in Tkinter
 import time  # Used for timeout control
+from flag import Flag
+from qreader import QReader
+import cv2
+import time
+import threading
+import queue
+
+def scan_qr_code():
+    qreader = QReader()
+    # Open camera
+    cap = cv2.VideoCapture(0)
+
+    while True:
+        # Read frame from camera
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # convert image color to RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # read QR code from image
+        decoded_text = qreader.detect_and_decode(image=rgb_frame)
+        return decoded_text
+        # if dedect code stop and return
+        if decoded_text and decoded_text[0] is not None:
+            cap.release()
+            cv2.destroyAllWindows()
+            return decoded_text
+        
+        # הצגת הפריים הנוכחי מהמצלמה
+        cv2.imshow("QR Code Scanner", frame)
+
+        # לחיצה על מקש 'q' לסיום (למקרה שרוצים להפסיק ידנית)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+        
+    # close camera and window
+    cap.release()
+    cv2.destroyAllWindows()
+    
+def handle_scan (instance: Flag,result_queue, timeout =3):
+    start_time = time.time() 
+    while time.time() - start_time < timeout:
+        ret = scan_qr_code()
+        if ret is not None: 
+            instance.set_value(True)
+            result_queue.put(ret)
+            return
+        time.sleep(0.1)
+
 
 def create_and_present_qr(data): 
     """
@@ -45,7 +96,7 @@ def create_and_present_qr(data):
 
     return root, stop_transmission
 
-def transmit_with_timeout(data, timeout=3):
+def transmit_with_timeout(data,instance: Flag, timeout=6):
     """
     Displays a QR code and waits for a confirmation signal within a specified timeout.
 
@@ -66,7 +117,7 @@ def transmit_with_timeout(data, timeout=3):
     # Continue displaying the QR code until timeout or confirmation
     while time.time() - start_time < timeout:
         # Check for confirmation signal
-        if check_confirmation():
+        if instance.get_value():
             confirmation_received = True
             print("Message confirmed by receiver.")
             break
@@ -78,21 +129,32 @@ def transmit_with_timeout(data, timeout=3):
 
     return confirmation_received
 
-def check_confirmation():
-    """
-    Placeholder function to simulate checking for a confirmation signal.
-    
-    Returns:
-        bool: False, indicating no confirmation received.
-    
-    Note:
-        Implement this function to add logic for checking QR code confirmation,
-        e.g., by scanning a QR code using a camera.
-    """
 
-    return False  # Replace with actual confirmation check logic
+def manager(data): 
+    confirm = Flag()  
+    result_queue = queue.Queue()
+   
+    transmit_thread = threading.Thread(
+        target=transmit_with_timeout, args=(data, confirm)
+    )
+
+
+    scan_thread = threading.Thread(target=handle_scan, args=(confirm,result_queue))
+
+
+    transmit_thread.start()
+    scan_thread.start()
+
+
+    transmit_thread.join()
+    scan_thread.join()
+
+    if not result_queue.empty():
+        return result_queue.get() 
+    return None 
 
 # Example data to encode in the QR code
 data = "fdfdfs akrfmskdfs sfsdfsd"
 # Transmit the QR code with a 3-second timeout
-transmit_with_timeout(data, timeout=3)
+result = manager(data)
+print("Result from handle_scan:", result)
