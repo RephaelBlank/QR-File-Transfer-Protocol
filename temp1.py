@@ -77,7 +77,7 @@ def create_and_present_qr(data):
 
     return root, stop_transmission
 
-def transmit_with_timeout(data,instance: Flag, timeout=6):
+def transmit_with_timeout(data,result_queue, timeout=6):
     """
     Displays a QR code and waits for a confirmation signal within a specified timeout.
 
@@ -98,7 +98,7 @@ def transmit_with_timeout(data,instance: Flag, timeout=6):
     # Continue displaying the QR code until timeout or confirmation
     while time.time() - start_time < timeout:
         # Check for confirmation signal
-        if instance.get_value():
+        if not result_queue.empty():
             confirmation_received = True
             print("Message confirmed by receiver.")
             break
@@ -116,7 +116,7 @@ def manager(data):
     result_queue = queue.Queue()
    
     transmit_thread = threading.Thread(
-        target=transmit_with_timeout, args=(data, confirm)
+        target=transmit_with_timeout, args=(data, result_queue)
     )
 
 
