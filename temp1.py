@@ -2,14 +2,13 @@ import qrcode  # Library to generate QR codes
 import tkinter as tk  # Tkinter library for creating GUI windows
 from PIL import ImageTk  # Provides ImageTk for displaying images in Tkinter
 import time  # Used for timeout control
-from flag import Flag
 from qreader import QReader
 import cv2
 import time
 import threading
 import queue
     
-def handle_scan (instance: Flag,result_queue, timeout =3):
+def handle_scan (result_queue, timeout =3):
     qreader = QReader()
     cap = cv2.VideoCapture(0)
     start_time = time.time() 
@@ -25,7 +24,6 @@ def handle_scan (instance: Flag,result_queue, timeout =3):
         decoded_text = qreader.detect_and_decode(image=rgb_frame)
         if decoded_text is not None and decoded_text !=() and decoded_text != (None,): 
                 print ("dec is ", decoded_text)
-                instance.set_value(True)
                 result_queue.put(decoded_text)
                 cap.release()
                 cv2.destroyAllWindows()
@@ -49,7 +47,7 @@ def create_and_present_qr(data):
     # Create a QR code object with specified parameters
     qr = qrcode.QRCode(
         version=3,  # Controls the size of the QR code
-        box_size=20,  # Size of each box in the QR code grid
+        box_size=10,  # Size of each box in the QR code grid
         border=10,  # Width of the border around the QR code
         error_correction=qrcode.constants.ERROR_CORRECT_H  # High error correction level
     )
@@ -111,8 +109,7 @@ def transmit_with_timeout(data,result_queue, timeout=6):
     return confirmation_received
 
 
-def manager(data): 
-    confirm = Flag()  
+def send_and_recv(data):   
     result_queue = queue.Queue()
    
     transmit_thread = threading.Thread(
@@ -120,7 +117,7 @@ def manager(data):
     )
 
 
-    scan_thread = threading.Thread(target=handle_scan, args=(confirm,result_queue))
+    scan_thread = threading.Thread(target=handle_scan, args=(result_queue,))
 
 
     transmit_thread.start()
@@ -134,8 +131,10 @@ def manager(data):
         return result_queue.get() 
     return None 
 
-# Example data to encode in the QR code
-data = "fdfdfs akrfmskdfs sfsdfsd"
-# Transmit the QR code with a 3-second timeout
-result = manager(data)
-print("Result from handle_scan:", result)
+if __name__ == "__main__": 
+
+    # Example data to encode in the QR code
+    data = "fdfdfs akrfmskdfs sfsdfsd"
+    # Transmit the QR code with a 3-second timeout
+    result = send_and_recv(("01",data))
+    print("Result from handle_scan:", result)
