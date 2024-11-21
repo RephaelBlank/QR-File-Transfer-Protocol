@@ -1,6 +1,8 @@
 from temp1 import send_and_recv,handle_scan
 import queue 
 import threading
+from concurrent.futures import ThreadPoolExecutor
+
 
 #add OK to the server messages 
 def confirm (data): 
@@ -23,12 +25,14 @@ def first_scan ():
 
 if __name__ == "__main__": 
     data = first_scan()
-    print ("exit:", data)
 
     while data is not None:
         msg = confirm (data)
         print (msg)
-        data = send_and_recv(msg)
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(send_and_recv, msg)
+            data = future.result()
+            print (data)
     
     print("No QR code detected during the scan.")
     
