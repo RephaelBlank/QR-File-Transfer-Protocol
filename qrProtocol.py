@@ -1,7 +1,6 @@
-import Scripts.flag
-from sympy import false
 from tkinter.messagebox import RETRY
-
+import random
+from typing import  List
 from time import sleep
 
 from enum import Enum
@@ -45,7 +44,8 @@ class ProtocolState(Enum):
     RECIVEING_DATA = "Reciveing Data"  # Actively Reciveing data packets
     DATA_SENT = "Data Sent"   # All data packets sent
     STOP_SENT = "Stop Sent"   # 'STOP' signal sent
-    STOP_ACKED = "Stop Acked" # 'STOPACC' received
+    STOP_RECIVED = "Stop received" #Send 'STOPPACK' response
+    STOP_ACK_RECIEVED = "Stop Acked" # 'STOPACK' received
     TERMINATED = "Terminated" # Final state, protocol completed
 
 
@@ -54,50 +54,52 @@ class ProtocolSpecialPacket(Enum):
     """Defines the special packets in the qr protocol
         This packets are used for flow control and DO NOT have a serquence/acknowledge number
     """
-    RTS_SEND = b'RTSSIG'
-    RTS_ACK = b'RTSACK'
-    STREAM_START = b'START'
-    STREAM_STOP = b'STOP'
-    STOP_ACC = b'STOPACC'
-    STOP_ACC_SYN = b'STOPSYNACK'
+    RTS_SEND = bytearray(b'RTSSIG')
+    RTS_ACK =bytearray( b'RTSACK')
+    STREAM_START = bytearray(b'START')
+    STREAM_STOP = bytearray(b'STOP')
+    STOP_ACK =bytearray( b'STOPACK')
+    STOP_ACK_SYN = bytearray(b'STOPSYNACK')
+
 
 
 class QRProtocolSender:
-    self.state:ProtocolState
-    self.buffer_size:int
-    self.sendBuffer:bytearray
-    self.receiveBuffer:bytearray
-    self.packets: List[bytearray]
-    self.receiveMessege:bytearray
-    self.toSend:bool
-    self.seqnum:int
-    self.acknum:int
+    state:ProtocolState
+    buffer_size:int
+    sendBuffer:bytearray
+    receiveBuffer:bytearray
+    packets: List[bytearray]
+    receiveMessage:bytearray
+    toSend:bool
+    receiveComplete:bool
+    seqnum:int
+    acknum:int
     def __init__(self):
         self.buffer_size = 30  # Packet size in bytes
         self.state = ProtocolState.IDLE
-        self.sendBuffer = bytearray(buffer_size)
-        self.receiveBuffer = bytearray(buffer_size)
+        self.sendBuffer = bytearray(self.buffer_size)
+        self.receiveBuffer = bytearray(self.buffer_size)
         self.packets = []
         self.toSend = False
         self.seqnum = 0
         self.acknum = -1
+        self.receiveComplete = True
 
 
-
-    def create_packets(self, data,):
+    def create_packets(self, data:bytearray,):
         """
         Divides the data into packets of buffer size minus 4 (for sequencing) and saves them.
         Parameters:
-            data (bytes): The data to be sent.
+            data (bytearray): The data to be sent.
         """
-        self.packets =  [data[i:i + buffer_size-4] for i in range(0, len(data), self.buffer_size-4)]
+        self.packets =  [data[i:i + self.buffer_size-4] for i in range(0, len(data), self.buffer_size-4)]
 
 
-    def new_data(self, data):
+    def new_data(self, data:bytearray):
         """
           Handles new data received and preprered the  protocl for sending
           Parameters:
-                  data (bytes): The data to be sent.
+                  data (bytearray): The data to be sent.
           """
         self.toSend = True
         self.create_packets(data)
@@ -127,33 +129,59 @@ class QRProtocolSender:
         """
         seqnum= int.from_bytes(response[0:2],byteorder='big')
         acknum= int.from_bytes(response[2:4],byteorder='big')
-        data = bytearray(packet[4:]).rstrip(b'\x00')
+        data = bytearray(response[4:]).rstrip(b'\x00')
         return seqnum,acknum,data
 
+    def getSendPacket(self)->bytearray:
+        """
+        Returns the packet to be shown on the qr
+        Returns:
+        bytearray packet
+        """
+        return self.sendBuffer
+
+    def getMessage(self)->tuple[bool,bytearray]:
+        """
+        returns the current message received from the other computer as well as if it is complete
+        Returns:
+        [message completed?, current message]
+        """
+        return self.receiveComplete,self.receiveMessage
+
     def handle_response_state(self, response:bytearray):
-        # add terminate handling
+        """
+        Handles the logic control of the communication
+        Updates buffers, creates packets, and receives data
+        Args:
+            response: Received packets
+
+        Returns
+        """
 
         match self.state:
             case ProtocolState.IDLE:#process response and set state
-                if response != ProtocolSpecialPacket.RTS_SEND:
+                if response != ProtocolSpecialPacket.RTS_SEND.value:
                     return#Nothing to do
                 else:
-                    self.state = ProtocolState.RTS_SEND_ACK#set staate to indicate send ack
+                    self.receiveMessage = bytearray() #empty the message buffer
+                    self.receiveComplete = False
+                    self.sendBuffer =bytearray(30)
+                    self.state = ProtocolState.RTS_SEND_ACK#set state to indicate send ack
                 return
 
-            case ProtocolState.RTS_SEND_START:#Need to send RTSSIG so set the send buffer
-                self.sendBuffer = ProtocolSpecialPacket.RTS_SEND
+            case ProtocolState.RTS_SEND_START:#Need to send RTSSIG so set the send buff
+                self.sendBuffer = ProtocolSpecialPacket.RTS_SEND.value
+
                 return
 
             case ProtocolState.RTS_SENT:  #sent RTSSIG
                 if response == ProtocolSpecialPacket.RTS_ACK:
                     self.state =ProtocolState.RTS_ACKED
-                else:
-                    sleep(1 + random())
+
                 return
 
             case ProtocolState.RTS_SEND_ACK:#recived a rts sig and need to send ack send
-                self.sendBuffer = ProtocolSpecialPacket.RTS_ACK
+                self.sendBuffer = ProtocolSpecialPacket.RTS_ACK.value
                 self.state = ProtocolState.RTS_SENT_ACK
                 return
 
@@ -164,14 +192,11 @@ class QRProtocolSender:
             case ProtocolState.RTS_SENT_ACK:  # recived an rts sig and sent ack
                 if response == ProtocolSpecialPacket.STREAM_START:  # if start recived great
                     self.state = ProtocolState.RECIVEING_DATA
-                else:
-                    sleep(1 + random())  # sleep and begin reciveing
-                    self.state = ProtocolState.RECIVEING_DATA
+
                 return
 
             case ProtocolState.START_SEND: #When reching here the start was already sent and the ack was recived
                 self.state = ProtocolState.START_SENT
-                sleep(1 + random())  # sleep and begin reciveing
                 return
 
             case ProtocolState.START_SENT:#Start was sent and a cycle waiting for receiving on other computer finished
@@ -183,7 +208,7 @@ class QRProtocolSender:
                 resseq , resack, resmessege = self.parse_response_packet(response)
                 if resack == self.seqnum:#packet was recived propertly great
                     self.seqnum = self.seqnum+1#update current index packet to send
-                    if resack > length(self.packets):#all packets were sent
+                    if resack > len(self.packets):#all packets were sent
                         self.state = ProtocolState.DATA_SENT
                         return
                     else:#more data to send
@@ -191,24 +216,50 @@ class QRProtocolSender:
                         return
                 else: #error response packet, send it again (perhaps send according to the ack num )
                     self.seqnum =resack+1
-                    if self.seqnum > length(self.packets):  # all packets were sent
+                    if self.seqnum > len(self.packets):  # all packets were sent
                         self.state = ProtocolState.DATA_SENT
                         return
                     else:  # more data to send
                         self.set_send_buffer_messege()
                         return
-                    self.set_send_buffer_messege()
 
             case ProtocolState.RECIVEING_DATA:#Actively receivng data
+                if response == ProtocolSpecialPacket.STREAM_STOP.value:#stop received
+                    self.state = ProtocolState.STOP_RECIVED
+                    self.sendBuffer= ProtocolSpecialPacket.STOP_ACK.value
+                    return
                 resseq, resack, resmessege = self.parse_response_packet(response)
                 if resseq == self.acknum+1 :#Segment recived is the next expected segment
-                    self.receiveMessege= self.receiveMessege + resmessege#append to the total messege
+                    self.receiveMessage= self.receiveMessage + resmessege#append to the total messege
                     self.acknum = self.acknum+1
                     self.set_send_buffer_messege(ack=True)
                 else:#error packet
                     self.set_send_buffer_messege(ack=True)#send packet with last seq recived
 
+            case ProtocolState.DATA_SENT:#all data was sent
+                self.sendBuffer = ProtocolSpecialPacket.STREAM_STOP.value#Send Stop message
+                if response == ProtocolSpecialPacket.STOP_ACK.value:#Stop Ack was recived
+                    self.state = ProtocolState.STOP_ACK_RECIEVED#update state
+                    self.sendBuffer = ProtocolSpecialPacket.STOP_ACK_SYN.value#Send STOP SYNACK
+                return
 
+            case  ProtocolState.STOP_RECIVED:#Stop recived
+                if response == ProtocolSpecialPacket.STOP_ACK_SYN.value:# The ack message was recived at the sender
+                    self.state = ProtocolState.TERMINATED#receiving process is terminated
+                    return
+                self.sendBuffer = ProtocolSpecialPacket.STOP_ACK.value#send stop_ack
+                return
+            case ProtocolState.STOP_ACK_RECIEVED:#Stop ack receive
+                self.sendBuffer = ProtocolSpecialPacket.STOP_ACK_SYN.value#Send syn ack
+                self.state = ProtocolState.TERMINATED#end process
+
+            case ProtocolState.TERMINATED:#Cleanup
+                self.receiveBuffer = bytearray(30)
+                self.seqnum = 0
+                self.acknum = -1
+                self.toSend = False
+                self.receiveComplete = True
+                self.state =ProtocolState.IDLE
 
         return
 
