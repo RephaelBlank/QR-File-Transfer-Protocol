@@ -1,16 +1,13 @@
-from tkinter.messagebox import RETRY
-import random
 from typing import  List
-from time import sleep
-
 from enum import Enum
+
 
 """
 This file describes the protocol used for qrs
 
 sender side:
 When trying to send(RTS) first packet is 'RTSSIG'
-then after reciveing from the other computer a 'RTSACK'
+then after receiving from the other computer a 'RTSACK'
 Send  'START'
 then start sending data (30 chars/  bytes at a time at most)
 
@@ -19,15 +16,19 @@ whilst sending a packet wait for the other computer to echo it when echo is reci
 When data sent is finished
 Send the following bytes 0x01 + 'STOP' (converted to bytes)
 wait for response "STOPACC"  from other computer
-after recivieng response Send following bytes "STOPSYNACK"
+after receiving response Send following bytes "STOPSYNACK"
 
 Data is sent as at most 30 bytes packets
+
+Control packet is one of the packets defined at the enum ProtocolSpecialPacket
+
 
 Regular packet format is as follows
 
 bytes 0-1 used for sequence number
 bytes 2-3 used for acknowledgment number
-bytes 4-29 used for data
+bytes 4-28 used for data
+byte 29 - checksum
 
 """
 class ProtocolState(Enum):
@@ -51,8 +52,8 @@ class ProtocolState(Enum):
 
 
 class ProtocolSpecialPacket(Enum):
-    """Defines the special packets in the qr protocol
-        This packets are used for flow control and DO NOT have a serquence/acknowledge number
+    """Defines the special packets in the qr protocol\n
+        These packets are used for flow control and DO NOT have a sequence/acknowledge number as well as a checksum
     """
     RTS_SEND = bytearray(b'RTSSIG')
     RTS_ACK =bytearray( b'RTSACK')
@@ -64,6 +65,13 @@ class ProtocolSpecialPacket(Enum):
 
 
 class QRProtocolSender:
+    """
+    This class handles the logic behind data transfer using packets as well data receiving using packet. \n
+    Methods: new_data(self, data:bytearray) is used for initializing the data sending process.\n
+    handle_response_state(self, response:bytearray): Run in loop for constant handling of responses(i.e new qr scans).\n
+    get_send_packet(self): Returns the current packet to be shown via q.r. Call it in a loop.\n
+    get_message(self): Used for checking the current state of the message received from the other computer.
+    """
     state:ProtocolState
     buffer_size:int
     sendBuffer:bytearray
@@ -74,6 +82,8 @@ class QRProtocolSender:
     receiveComplete:bool
     seqnum:int
     acknum:int
+
+
     def __init__(self):
         self.buffer_size = 30  # Packet size in bytes
         self.state = ProtocolState.IDLE
@@ -92,47 +102,68 @@ class QRProtocolSender:
         Parameters:
             data (bytearray): The data to be sent.
         """
-        self.packets =  [data[i:i + self.buffer_size-4] for i in range(0, len(data), self.buffer_size-4)]
+        self.packets =  [data[i:i + self.buffer_size-5] for i in range(0, len(data), self.buffer_size-5)]
 
+    def calculate_checksum(self, packet:bytearray)->bytes:
+        """
+        Calculate packets check sum, equals sum of all byte as unsigned chars module 256\n
+        Raises ValueError if packet len isn't 29\n
+        Args:
+            packet:
+            bytearray size of 29\n
+        Returns:
+        checksum byte
+        """
+        sum:int = 0
+        if len(packet) != self.buffer_size-1:
+            raise ValueError(f"Error: expected buffer len {self.buffer_size-1}, but got {len(packet)}.")
+        for byte in packet:#calculate check sum
+            sum = (sum +byte)%256
+        return sum.to_bytes(length=1,byteorder='big')
 
     def new_data(self, data:bytearray):
         """
-          Handles new data received and preprered the  protocl for sending
+          Handles new data received and prepared the  protocol for sending.\n
           Parameters:
                   data (bytearray): The data to be sent.
           """
         self.toSend = True
         self.create_packets(data)
         self.seqnum =0
-        self.acknum= 0
+        self.acknum= -1
         self.state = ProtocolState.RTS_SEND_START
-    def set_send_buffer_messege(self, ack = False):
+    def set_send_buffer_message(self, ack = False):
         """
-        Creates a packet to send with the seqnum and acknum as the first 4bytes and 26 bytes of data.
-        Stores the packet in the sned buffer
+        Creates a packet to send with the seqnum and acknum as the first 4bytes and 25 bytes of data and ads the checksum.\n
+        Stores the packet in the send buffer.
         :return:
         """
         seqnum_bytes = self.seqnum.to_bytes(2,byteorder='big')
         acknum_bytes = self.acknum.to_bytes(2,byteorder='big')
-        if ack== True:
-            data_padded =  bytearray(26)
+        if ack == True:
+            data_padded =  bytearray(self.buffer_size-5)
+
         else:
-            data_padded = self.packets[self.seqnum].ljust(self.buffer_size-4, b'\x00')
-
-        self.sendBuffer=bytearray(seqnum_bytes+acknum_bytes+data_padded)
-
-    def parse_response_packet(self,response:bytearray)-> tuple[int,int,bytearray]:
+            data_padded = self.packets[self.seqnum].ljust(self.buffer_size-5, b'\x00')
+        try:
+            self.sendBuffer=bytearray(seqnum_bytes+acknum_bytes+data_padded+ self.calculate_checksum(bytearray(seqnum_bytes+acknum_bytes+data_padded)))
+        except ValueError  :
+            self.sendBuffer = bytearray([1]*30)#create illegal packet
+    def parse_response_packet(self,response:bytearray)-> tuple[int,int,bytearray,bytes]:
         """
         Parses the packet and extracts the seqnum,acknum and the message
         :param response: standard 30 byte packet
-        :return: seqnum,acknum, data
+        :return: seqnum,acknum, data,checksum
         """
         seqnum= int.from_bytes(response[0:2],byteorder='big')
         acknum= int.from_bytes(response[2:4],byteorder='big')
-        data = bytearray(response[4:]).rstrip(b'\x00')
-        return seqnum,acknum,data
+        data = bytearray(response[4:self.buffer_size-1]).rstrip(b'\x00')
+        checksum = self.calculate_checksum(bytearray[0:29])
+        if checksum != response[29]:#Compare calculated checksum to received packet checksum
+            raise ValueError("Error: Incorrect checksum")
+        return seqnum,acknum,data,checksum
 
-    def getSendPacket(self)->bytearray:
+    def get_send_packet(self)->bytearray:
         """
         Returns the packet to be shown on the qr
         Returns:
@@ -140,7 +171,7 @@ class QRProtocolSender:
         """
         return self.sendBuffer
 
-    def getMessage(self)->tuple[bool,bytearray]:
+    def get_message(self)->tuple[bool,bytearray]:
         """
         returns the current message received from the other computer as well as if it is complete
         Returns:
@@ -155,7 +186,7 @@ class QRProtocolSender:
         Args:
             response: Received packets
 
-        Returns
+
         """
 
         match self.state:
@@ -169,14 +200,21 @@ class QRProtocolSender:
                     self.state = ProtocolState.RTS_SEND_ACK#set state to indicate send ack
                 return
 
-            case ProtocolState.RTS_SEND_START:#Need to send RTSSIG so set the send buff
-                self.sendBuffer = ProtocolSpecialPacket.RTS_SEND.value
+            case ProtocolState.RTS_SEND_START:#Need to send RTSSIG so set the send buffer
+                if response == ProtocolSpecialPacket.RTS_SEND.value:#Received rts from other client. yield and allow other user to send first
+                    self.receiveMessage = bytearray()  # empty the message buffer
+                    self.receiveComplete = False
+                    self.sendBuffer = bytearray(30)
+                    self.state = ProtocolState.RTS_SEND_ACK  # set state to indicate send ack
+                else:#Priority is this users.
+                    self.sendBuffer = ProtocolSpecialPacket.RTS_SEND.value
+                    self.state= ProtocolState.RTS_SENT
 
                 return
 
             case ProtocolState.RTS_SENT:  #sent RTSSIG
                 if response == ProtocolSpecialPacket.RTS_ACK:
-                    self.state =ProtocolState.RTS_ACKED
+                    self.state = ProtocolState.RTS_ACKED
 
                 return
 
@@ -189,13 +227,13 @@ class QRProtocolSender:
                 self.state = ProtocolState.START_SEND#set state to signal send need to be sent
                 return
 
-            case ProtocolState.RTS_SENT_ACK:  # recived an rts sig and sent ack
-                if response == ProtocolSpecialPacket.STREAM_START:  # if start recived great
+            case ProtocolState.RTS_SENT_ACK:  # received a rts sig and sent ack
+                if response == ProtocolSpecialPacket.STREAM_START:  # if start received great
                     self.state = ProtocolState.RECIVEING_DATA
 
                 return
 
-            case ProtocolState.START_SEND: #When reching here the start was already sent and the ack was recived
+            case ProtocolState.START_SEND: #When reaching here the start was already sent and the ack was received
                 self.state = ProtocolState.START_SENT
                 return
 
@@ -205,46 +243,52 @@ class QRProtocolSender:
                 self.state =ProtocolState.SENDING_DATA#signal begin sending
 
             case ProtocolState.SENDING_DATA:#sending data
-                resseq , resack, resmessege = self.parse_response_packet(response)
+                try:
+                    resseq , resack, resmessege,checksum = self.parse_response_packet(response)
+                except ValueError :#Illegal response length or illegal checksum
+                    return
                 if resack == self.seqnum:#packet was recived propertly great
                     self.seqnum = self.seqnum+1#update current index packet to send
-                    if resack > len(self.packets):#all packets were sent
+                    if self.seqnum >= len(self.packets):#all packets were sent
                         self.state = ProtocolState.DATA_SENT
                         return
                     else:#more data to send
-                        self.set_send_buffer_messege()
+                        self.set_send_buffer_message()
                         return
                 else: #error response packet, send it again (perhaps send according to the ack num )
                     self.seqnum =resack+1
-                    if self.seqnum > len(self.packets):  # all packets were sent
+                    if self.seqnum >= len(self.packets):  # all packets were sent
                         self.state = ProtocolState.DATA_SENT
                         return
                     else:  # more data to send
-                        self.set_send_buffer_messege()
+                        self.set_send_buffer_message()
                         return
 
-            case ProtocolState.RECIVEING_DATA:#Actively receivng data
+            case ProtocolState.RECIVEING_DATA:#Actively receiving data
                 if response == ProtocolSpecialPacket.STREAM_STOP.value:#stop received
                     self.state = ProtocolState.STOP_RECIVED
                     self.sendBuffer= ProtocolSpecialPacket.STOP_ACK.value
                     return
-                resseq, resack, resmessege = self.parse_response_packet(response)
-                if resseq == self.acknum+1 :#Segment recived is the next expected segment
-                    self.receiveMessage= self.receiveMessage + resmessege#append to the total messege
+                try:
+                    resseq, resack, resmessege, checksum = self.parse_response_packet(response)
+                except ValueError:  # Illegal response length or illegal checksum
+                    return
+                if resseq == self.acknum+1 :#Segment received is the next expected segment
+                    self.receiveMessage= self.receiveMessage + resmessege#append to the total message
                     self.acknum = self.acknum+1
-                    self.set_send_buffer_messege(ack=True)
+                    self.set_send_buffer_message(ack=True)
                 else:#error packet
-                    self.set_send_buffer_messege(ack=True)#send packet with last seq recived
+                    self.set_send_buffer_message(ack=True)#send packet with last seq received
 
             case ProtocolState.DATA_SENT:#all data was sent
                 self.sendBuffer = ProtocolSpecialPacket.STREAM_STOP.value#Send Stop message
-                if response == ProtocolSpecialPacket.STOP_ACK.value:#Stop Ack was recived
+                if response == ProtocolSpecialPacket.STOP_ACK.value:#Stop Ack was received
                     self.state = ProtocolState.STOP_ACK_RECIEVED#update state
                     self.sendBuffer = ProtocolSpecialPacket.STOP_ACK_SYN.value#Send STOP SYNACK
                 return
 
-            case  ProtocolState.STOP_RECIVED:#Stop recived
-                if response == ProtocolSpecialPacket.STOP_ACK_SYN.value:# The ack message was recived at the sender
+            case  ProtocolState.STOP_RECIVED:#Stop received
+                if response == ProtocolSpecialPacket.STOP_ACK_SYN.value:# The ack message was received at the sender
                     self.state = ProtocolState.TERMINATED#receiving process is terminated
                     return
                 self.sendBuffer = ProtocolSpecialPacket.STOP_ACK.value#send stop_ack
@@ -255,9 +299,13 @@ class QRProtocolSender:
 
             case ProtocolState.TERMINATED:#Cleanup
                 self.receiveBuffer = bytearray(30)
+                if self.seqnum < len(self.packets):#Happens when both clients requested to send and this client has lost
+                    self.toSend = True
+                else:
+                    self.toSend = False
                 self.seqnum = 0
                 self.acknum = -1
-                self.toSend = False
+
                 self.receiveComplete = True
                 self.state =ProtocolState.IDLE
 
