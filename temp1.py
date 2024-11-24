@@ -67,6 +67,11 @@ def create_and_present_qr(data):
     label = tk.Label(root, image=qr_image)  # Place image in Tkinter label
     label.image = qr_image  # Keep a reference to the image to prevent garbage collection
     label.pack()  # Add the label to the window
+
+    window_width = 400  # Assumed width of the QR window
+    window_height = 400  # Assumed height of the QR window
+    root.geometry(f"{window_width}x{window_height}+560+140")
+
     root.update()  # Update window to display contents immediately
 
     def stop_transmission():
