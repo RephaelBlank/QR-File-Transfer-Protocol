@@ -2,12 +2,13 @@ import qrcode  # Library to generate QR codes
 import tkinter as tk  # Tkinter library for creating GUI windows
 from PIL import ImageTk  # Provides ImageTk for displaying images in Tkinter
 import time  # Used for timeout control
+
 from qreader import QReader
 import cv2
 import time
 import threading
 import queue
-    
+from qrProtocol import QRProtocolSender
 def handle_scan (result_queue, timeout =3):
     qreader = QReader()
     cap = cv2.VideoCapture(0)
@@ -32,8 +33,39 @@ def handle_scan (result_queue, timeout =3):
     cap.release()
     cv2.destroyAllWindows()
 
+def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:queue, timeout:int = 3):
+    """
+    Handles scan including parsing of packets
+    """
+    qreader = QReader()
+    cap = cv2.VideoCapture(0)
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        ret, frame = cap.read()
+        if not ret:
+            break
+   # Convert image color to RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-def create_and_present_qr(data): 
+        # Read QR code from image
+        decoded_text = qreader.detect_and_decode(image=rgb_frame)
+        if decoded_text:#i.e. not none
+            if decoded_text[0]:
+                try:
+                    response =  bytearray(decoded_text[0].encode('utf-8'))
+                    protocol_sender.handle_response_state(response)
+                    result_queue.put(response)
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return
+                except Exception as e:
+                    return
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+def create_and_present_qr(data:str):
     """
     Generates and displays a QR code in a Tkinter window.
 
@@ -113,6 +145,32 @@ def transmit_with_timeout(data,result_queue, timeout=6):
 
     return confirmation_received
 
+def transmit_with_timeout_with_protocol(protocol_sender, result_queue, timeout=6):
+    """
+      Displays packets as QR codes and handles responses using the protocol.
+      """
+    root, stop_transmission = create_and_present_qr(protocol_sender.get_send_packet())
+
+    start_time = time.time()
+    confirmation_received = False
+
+    while time.time() - start_time < timeout:
+        if not result_queue.empty():#Need care
+            confirmation_received = True
+            print("Message confirmed by receiver.")
+            break
+
+        #generate new packet to continue communications
+        packet = protocol_sender.get_send_packet()
+        if packet:
+            create_and_present_qr(packet)  # Update the displayed QR code
+
+        root.update()
+        time.sleep(0.1)
+
+    stop_transmission()
+    return confirmation_received
+
 
 def send_and_recv(data):   
     result_queue = queue.Queue()
@@ -136,10 +194,42 @@ def send_and_recv(data):
         return result_queue.get() 
     return None 
 
+def send_and_receive_with_protocol(data:str):
+    """
+       Creates two threads for orchestrating a send and receive communication between two computers.\n
+       Uses QRProtocolSender for performing logical actions in order with the protocol
+       """
+    protocol_sender = QRProtocolSender()
+    protocol_sender.new_data(bytearray(data.encode()))  # Initialize the protocol with data
+    result_queue = queue.Queue()
+
+    transmit_thread = threading.Thread(
+        target=transmit_with_timeout_with_protocol, args=(protocol_sender, result_queue)
+    )
+
+    scan_thread = threading.Thread(
+        target=handle_scan_with_protocol, args=( protocol_sender, result_queue)
+    )
+
+    transmit_thread.start()
+    scan_thread.start()
+
+    transmit_thread.join()
+    scan_thread.join()
+
+    if protocol_sender.get_message():
+        print("Received message:", protocol_sender.get_message())
+
+    if not result_queue.empty():
+        return result_queue.get()
+    return None
+
+
 if __name__ == "__main__": 
 
     # Example data to encode in the QR code
     data = "fdfdfs akrfmskdfs sfsdfsd"
     # Transmit the QR code with a 3-second timeout
-    result = send_and_recv(("01",data))
+   # result = send_and_recv(("01",data))
+    result = send_and_receive_with_protocol(data)
     print("Result from handle_scan:", result)

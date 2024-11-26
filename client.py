@@ -1,4 +1,4 @@
-from temp1 import send_and_recv,handle_scan
+from temp1 import send_and_recv, handle_scan, send_and_receive_with_protocol
 import queue 
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         msg = confirm (data)
         print (msg)
         with ThreadPoolExecutor() as executor:
-            future = executor.submit(send_and_recv, msg)
+            future = executor.submit(send_and_receive_with_protocol,"" )#msg)
             data = future.result()
             print (data)
     

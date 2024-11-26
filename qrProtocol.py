@@ -69,7 +69,7 @@ class QRProtocolSender:
     This class handles the logic behind data transfer using packets as well data receiving using packet. \n
     Methods: new_data(self, data:bytearray) is used for initializing the data sending process.\n
     handle_response_state(self, response:bytearray): Run in loop for constant handling of responses(i.e new qr scans).\n
-    get_send_packet(self): Returns the current packet to be shown via q.r. Call it in a loop.\n
+    get_send_packet(self): Returns the current packet to be shown via QR. Call it in a loop.\n
     get_message(self): Used for checking the current state of the message received from the other computer.
     """
     state:ProtocolState
@@ -123,10 +123,12 @@ class QRProtocolSender:
 
     def new_data(self, data:bytearray):
         """
-          Handles new data received and prepared the  protocol for sending.\n
+          Handles new data received and prepars the  protocol for sending.\n
           Parameters:
                   data (bytearray): The data to be sent.
           """
+        if data:#Nothing to send
+            return
         self.toSend = True
         self.create_packets(data)
         self.seqnum =0
