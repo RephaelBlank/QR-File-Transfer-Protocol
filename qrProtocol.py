@@ -89,12 +89,12 @@ class QRProtocolSender:
         self.state = ProtocolState.IDLE
         self.sendBuffer = bytearray(self.buffer_size)
         self.receiveBuffer = bytearray(self.buffer_size)
-        self.receiveMessage = bytearray(0)
         self.packets = []
         self.toSend = False
         self.seqnum = 0
         self.acknum = -1
         self.receiveComplete = True
+        self.receiveMessage = ""
 
 
     def create_packets(self, data:bytearray,):
@@ -104,6 +104,7 @@ class QRProtocolSender:
             data (bytearray): The data to be sent.
         """
         self.packets =  [data[i:i + self.buffer_size-5] for i in range(0, len(data), self.buffer_size-5)]
+        print (self.packets)
 
     def calculate_checksum(self, packet:bytearray)->bytes:
         """
@@ -129,11 +130,12 @@ class QRProtocolSender:
                   data (bytearray): The data to be sent.
           """
         if data:#Nothing to send
-            self.toSend = True
-            self.create_packets(data)
-            self.seqnum =0
-            self.acknum= -1
-            self.state = ProtocolState.RTS_SEND_START
+            return
+        self.toSend = True
+        self.create_packets(data)
+        self.seqnum =0
+        self.acknum= -1
+        self.state = ProtocolState.RTS_SEND_START
     def set_send_buffer_message(self, ack = False):
         """
         Creates a packet to send with the seqnum and acknum as the first 4bytes and 25 bytes of data and ads the checksum.\n
