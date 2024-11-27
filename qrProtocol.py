@@ -94,6 +94,7 @@ class QRProtocolSender:
         self.seqnum = 0
         self.acknum = -1
         self.receiveComplete = True
+        self.receiveMessage = ""
 
 
     def create_packets(self, data:bytearray,):
@@ -103,6 +104,7 @@ class QRProtocolSender:
             data (bytearray): The data to be sent.
         """
         self.packets =  [data[i:i + self.buffer_size-5] for i in range(0, len(data), self.buffer_size-5)]
+        print (self.packets)
 
     def calculate_checksum(self, packet:bytearray)->bytes:
         """
@@ -127,7 +129,7 @@ class QRProtocolSender:
           Parameters:
                   data (bytearray): The data to be sent.
           """
-        if data:#Nothing to send
+        if not data:#Nothing to send
             return
         self.toSend = True
         self.create_packets(data)
