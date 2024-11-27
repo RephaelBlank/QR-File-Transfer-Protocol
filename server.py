@@ -7,10 +7,13 @@ for s in full_message:
         #future = executor.submit(send_and_recv, s)
         future = executor.submit(send_and_receive_with_protocol, s)
 
-        data = future.result()
+        try:
+            data = future.result()
+        except Exception:
+            break
         if data is None:
             print("No response")
-            return
+
 
         print (data)
         if data is None:

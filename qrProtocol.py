@@ -129,7 +129,7 @@ class QRProtocolSender:
           Parameters:
                   data (bytearray): The data to be sent.
           """
-        if data:#Nothing to send
+        if not data:#Nothing to send
             return
         self.toSend = True
         self.create_packets(data)

@@ -31,7 +31,7 @@ if __name__ == "__main__":
   #      msg = confirm (data)
    #     print (msg)
     with ThreadPoolExecutor() as executor:
-        future   = executor.submit(send_and_receive_with_protocol,"" )#msg)
+        future   = executor.submit(send_and_receive_with_protocol,str() )#msg)
         data = future.result()
 
     

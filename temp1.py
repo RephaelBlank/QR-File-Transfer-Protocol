@@ -1,3 +1,5 @@
+from time import sleep
+
 import qrcode  # Library to generate QR codes
 import tkinter as tk  # Tkinter library for creating GUI windows
 from PIL import ImageTk  # Provides ImageTk for displaying images in Tkinter
@@ -41,10 +43,10 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
     """
     #need a rework
     qreader = QReader()
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(0)#start capture
     start_time = time.time()
     while time.time() - start_time < timeout:
-        ret, frame = cap.read()
+        ret, frame = cap.read()#capture frame
         if not ret:
             break
    # Convert image color to RGB
@@ -52,21 +54,22 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
 
         # Read QR code from image
         decoded_text = qreader.detect_and_decode(image=rgb_frame)
-        if decoded_text:#i.e. not none
-            if decoded_text[0]:
-                try:
-                    response =  bytearray(decoded_text[0].encode('utf-8'))
-                    with protocol_lock:
-                        protocol_sender.handle_response_state(response)
-                    result_queue.put(response)
-                    cap.release()
-                    cv2.destroyAllWindows()
-                    return
-                except Exception as e:
-                    return
+        if decoded_text and  decoded_text[0]:#i.e. not none
+            try:
+                response =  bytearray(decoded_text[0].encode('utf-8'))
+                with protocol_lock:
+                    protocol_sender.handle_response_state(response)
+                result_queue.put(response)
 
-        cap.release()
-        cv2.destroyAllWindows()
+            except Exception as e:
+                print("Error: No valid scan " +str(time.time()-start_time))
+                return
+        else:
+            print("Nothing detected at "+str(time.time()-start_time))
+        time.sleep(0.1)#yield and allow other thread to work
+    #close capture and release resources
+    cap.release()
+    cv2.destroyAllWindows()
 
 
 def create_and_present_qr(data:str):
@@ -132,35 +135,36 @@ def create_and_present_qr_with_protocol(data: bytearray,root:tk):
     # Create a QR code object with specified parameters
     qr = qrcode.QRCode(
         version=3,  # Controls the size of the QR code
-        box_size=8,  # Size of each box in the QR code grid
+        box_size=10,  # Size of each box in the QR code grid
         border=10,  # Width of the border around the QR code
-        error_correction=qrcode.constants.ERROR_CORRECT_H  # High error correction level
+        error_correction=qrcode.constants.ERROR_CORRECT_M  # High error correction level
     )
     # Add data to the QR code
-    qr.add_data(data)
+    qr.add_data(data.decode("utf-8"))
+    print(data.decode("utf-8"))
     qr.make(fit=True)  # Adjusts dimensions to fit data
 
     # Generate the QR code image with specified colors
     img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-    qr_image = ImageTk.PhotoImage(img)
+    qr_image = ImageTk.PhotoImage(img)#generate image
 
     # Initialize Tkinter root window
     root.title("QR Code Display")
 
     # Convert the QR code image for display in Tkinter
-    window_width = 700  # Assumed width of the QR window
-    window_height = 700  # Assumed height of the QR window
-    root.geometry(f"{window_width}x{window_height}+560+140")
+    window_width = 700  #width of the QR window
+    window_height = 700  # height of the QR window
+    root.geometry(f"{window_width}x{window_height}+560+140")#generate size
     if not hasattr(root, "qr_label"):
-        qr_label = tk.Label(root, image=qr_image)
+        qr_label = tk.Label(root, image=qr_image)#insert image
         qr_label.pack()
         root.qr_label = qr_label
     else:
         qr_label = root.qr_label
         qr_label.config(image=qr_image)
-    qr_label.image = qr_image  # Prevent garbage collection
+    qr_label.image = qr_image  # Prevent garbage collection and deletion of image
 
-    root.update()  # Update window to display contents immediately
+    root.update()  # Update window to display contents
     root.qr_image = qr_image  # Prevent garbage collection
 
 
@@ -205,7 +209,7 @@ def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result
       """
     root = tk.Tk()
     with protocol_lock:
-        protocol_sender.handle_response_state(bytearray(5))
+        #protocol_sender.handle_response_state(bytearray(5))
         create_and_present_qr_with_protocol(protocol_sender.get_send_packet(),root)
     start_time = time.time()
     confirmation_received = False
@@ -257,9 +261,10 @@ def send_and_receive_with_protocol(data:str):
        Uses QRProtocolSender for performing logical actions in order with the protocol
        """
     protocol_sender = QRProtocolSender()
-    protocol_sender.new_data(bytearray(data.encode()))  # Initialize the protocol with data
+    protocol_sender.new_data(bytearray(data.encode('utf-8')))  # Initialize the protocol with data
+    protocol_sender.handle_response_state(bytearray(0))
     result_queue = queue.Queue()
-    protocol_lock = threading.Lock()
+    protocol_lock = threading.Lock()#used for ensuring that both threads dont create a race condition
     transmit_thread = threading.Thread(
         target=transmit_with_timeout_with_protocol, args=(protocol_sender, result_queue,protocol_lock)
     )
@@ -268,14 +273,16 @@ def send_and_receive_with_protocol(data:str):
         target=handle_scan_with_protocol, args=( protocol_sender, result_queue,protocol_lock)
     )
 
-    transmit_thread.start()
     scan_thread.start()
+    sleep(5)#Need to let the scan thread have a headstart since it takes much longer
+    transmit_thread.start()
+
     try:
         transmit_thread.join()
         scan_thread.join()
     except Exception :
         return None
-    with protocol_sender:
+    with protocol_lock:
         if protocol_sender.get_message():
             print("Received message:", protocol_sender.get_message())
 
