@@ -37,7 +37,7 @@ def handle_scan (result_queue, timeout =3):
     cap.release()
     cv2.destroyAllWindows()
 
-def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:queue,protocol_lock:threading.Lock, timeout:int = 15):
+def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:queue,protocol_lock:threading.Lock, timeout:int = 50):
     """
     Handles scan including parsing of packets
     """
@@ -59,11 +59,13 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
                 response =  bytearray(decoded_text[0].encode('utf-8'))
                 with protocol_lock:
                     protocol_sender.handle_response_state(response)
-                result_queue.put(response)
+                    print ("Current state: "+ protocol_sender.state.name)
+                print("Message received:"+ decoded_text[0] + " at:"+str(time.time()-start_time))
+                result_queue.put(decoded_text[0])
 
             except Exception as e:
                 print("Error: No valid scan " +str(time.time()-start_time))
-                return
+
         else:
             print("Nothing detected at "+str(time.time()-start_time))
         time.sleep(0.1)#yield and allow other thread to work
@@ -141,7 +143,7 @@ def create_and_present_qr_with_protocol(data: bytearray,root:tk):
     )
     # Add data to the QR code
     qr.add_data(data.decode("utf-8"))
-    print(data.decode("utf-8"))
+    print("packet sent: " + data.decode("utf-8"))
     qr.make(fit=True)  # Adjusts dimensions to fit data
 
     # Generate the QR code image with specified colors
@@ -203,7 +205,7 @@ def transmit_with_timeout(data,result_queue, timeout=6):
 
     return confirmation_received
 
-def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result_queue,protocol_lock:threading.Lock  ,timeout=15):
+def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result_queue,protocol_lock:threading.Lock  ,timeout=50):
     """
       Displays packets as QR codes and handles responses using the protocol.
       """
@@ -217,8 +219,8 @@ def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result
     while time.time() - start_time < timeout:
         if not result_queue.empty():#Need care
             confirmation_received = True
-            print("Message confirmed by receiver.")
-            break
+            #print("Message confirmed by receiver.")
+
 
         #generate new packet to continue communications
         with protocol_lock:

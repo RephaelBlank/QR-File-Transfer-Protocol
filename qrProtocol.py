@@ -229,11 +229,12 @@ class QRProtocolSender:
 
             case ProtocolState.RTS_ACKED:#recived ack
                 self.state = ProtocolState.START_SEND#set state to signal send need to be sent
+                self.sendBuffer =ProtocolSpecialPacket.STREAM_START.value
                 return
 
             case ProtocolState.RTS_SENT_ACK:  # received a rts sig and sent ack
-                if response == ProtocolSpecialPacket.STREAM_START.value:  # if start received great
-                    self.state = ProtocolState.RECIVEING_DATA
+                #if response == ProtocolSpecialPacket.STREAM_START.value:  # if start received great
+                self.state = ProtocolState.RECIVEING_DATA
 
                 return
 
