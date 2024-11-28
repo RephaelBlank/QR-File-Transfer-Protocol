@@ -246,8 +246,13 @@ class QRProtocolSender:
                 self.seqnum = 0 #init data seqnum
                 self.acknum = 0 #init data acknum
                 self.state =ProtocolState.SENDING_DATA#signal begin sending
+                return
 
             case ProtocolState.SENDING_DATA:#sending data
+                if self.seqnum == 0:#first packet
+                    self.set_send_buffer_message()
+                    return
+
                 try:
                     resseq , resack, resmessege,checksum = self.parse_response_packet(response)
                 except ValueError :#Illegal response length or illegal checksum
