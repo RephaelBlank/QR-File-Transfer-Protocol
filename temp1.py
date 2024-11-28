@@ -64,6 +64,7 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
                 result_queue.put(decoded_text[0])
 
             except Exception as e:
+                print(e)
                 print("Error: No valid scan " +str(time.time()-start_time))
 
         else:

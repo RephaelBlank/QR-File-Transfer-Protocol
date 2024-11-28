@@ -119,8 +119,8 @@ class QRProtocolSender:
         sum:int = 0
         if len(packet) != self.buffer_size-1:
             raise ValueError(f"Error: expected buffer len {self.buffer_size-1}, but got {len(packet)}.")
-        for byte in packet:#calculate check sum
-            sum = (sum +byte)%256
+        for i in range(0,self.buffer_size-1 , 1):
+            sum = (sum +packet[i])%256
         return sum.to_bytes(length=1,byteorder='big')
 
     def new_data(self, data:bytearray):
@@ -162,12 +162,17 @@ class QRProtocolSender:
         :param response: standard 30 byte packet
         :return: seqnum,acknum, data,checksum
         """
+        if len(response)<30:
+            raise ValueError("Error: Too short packet")
+
         seqnum= int.from_bytes(response[0:2],byteorder='big')
         acknum= int.from_bytes(response[2:4],byteorder='big')
 
         data = bytearray(response[4:self.buffer_size-1]).rstrip(b'\x00')
-        checksum = self.calculate_checksum(bytearray[0:29])
-        if checksum != response[29]:#Compare calculated checksum to received packet checksum
+        checksum = self.calculate_checksum(response[0:self.buffer_size-1])#calculate the received packet checksum
+        received_checksum = int.to_bytes(response[29],length=1,byteorder='big')
+        if checksum != received_checksum:#Compare calculated checksum to received packet checksum
+            print("ERROR: Expected checksum: "+ checksum.decode('utf-8')+ " Received checksum: " + received_checksum.decode('utf-8'))
             raise ValueError("Error: Incorrect checksum")
         return seqnum,acknum,data,checksum
 
@@ -284,7 +289,7 @@ class QRProtocolSender:
                     return
                 try:
                     resseq, resack, resmessege, checksum = self.parse_response_packet(response)
-                except ValueError:  # Illegal response length or illegal checksum
+                except ValueError as error:  # Illegal response length or illegal checksum
                     return
                 if resseq == self.acknum+1 :#Segment received is the next expected segment
                     self.receiveMessage= self.receiveMessage + resmessege#append to the total message
