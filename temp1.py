@@ -56,7 +56,7 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
         decoded_text = qreader.detect_and_decode(image=rgb_frame)
         if decoded_text and  decoded_text[0]:#i.e. not none
             try:
-                response =  bytearray(decoded_text[0].encode('utf-8'))
+                response =  bytearray(decoded_text[0].encode('latin1'))
                 with protocol_lock:
                     protocol_sender.handle_response_state(response)
                     print ("Current state: "+ protocol_sender.state.name)
@@ -143,8 +143,8 @@ def create_and_present_qr_with_protocol(data: bytearray,root:tk):
         error_correction=qrcode.constants.ERROR_CORRECT_M  # High error correction level
     )
     # Add data to the QR code
-    qr.add_data(data.decode("utf-8"))
-    print("packet sent: " + data.decode("utf-8"))
+    qr.add_data(data.decode("latin1") )
+    print("packet sent: " + data.decode("latin1"))
     qr.make(fit=True)  # Adjusts dimensions to fit data
 
     # Generate the QR code image with specified colors
@@ -264,7 +264,7 @@ def send_and_receive_with_protocol(data:str):
        Uses QRProtocolSender for performing logical actions in order with the protocol
        """
     protocol_sender = QRProtocolSender()
-    protocol_sender.new_data(bytearray(data.encode('utf-8')))  # Initialize the protocol with data
+    protocol_sender.new_data(bytearray(data.encode('latin1')))  # Initialize the protocol with data
     protocol_sender.handle_response_state(bytearray(0))
     result_queue = queue.Queue()
     protocol_lock = threading.Lock()#used for ensuring that both threads dont create a race condition
