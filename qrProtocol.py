@@ -143,7 +143,10 @@ class QRProtocolSender:
         :return:
         """
         seqnum_bytes = self.seqnum.to_bytes(2,byteorder='big')
-        acknum_bytes = self.acknum.to_bytes(2,byteorder='big')
+        try:
+            acknum_bytes = self.acknum.to_bytes(2,byteorder='big')
+        except Exception:#can rose when acknum is negative
+            acknum_bytes = bytes(2)#compensate by putting zeros
         if ack == True:
             data_padded =  bytearray(self.buffer_size-5)
 
@@ -161,6 +164,7 @@ class QRProtocolSender:
         """
         seqnum= int.from_bytes(response[0:2],byteorder='big')
         acknum= int.from_bytes(response[2:4],byteorder='big')
+
         data = bytearray(response[4:self.buffer_size-1]).rstrip(b'\x00')
         checksum = self.calculate_checksum(bytearray[0:29])
         if checksum != response[29]:#Compare calculated checksum to received packet checksum
