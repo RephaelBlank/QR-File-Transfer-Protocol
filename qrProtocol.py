@@ -244,15 +244,14 @@ class QRProtocolSender:
 
             case ProtocolState.START_SENT:#Start was sent and a cycle waiting for receiving on other computer finished
                 self.seqnum = 0 #init data seqnum
-                self.acknum = 0 #init data acknum
+                self.acknum = -1#init data acknum
                 self.state =ProtocolState.SENDING_DATA#signal begin sending
                 return
 
             case ProtocolState.SENDING_DATA:#sending data
-                if self.seqnum == 0:#first packet
+                if self.seqnum == 0 and len(response)<30:  # first packet to send and response is curruntely a non valid packet , most likely b'RTSACK'
                     self.set_send_buffer_message()
                     return
-
                 try:
                     resseq , resack, resmessege,checksum = self.parse_response_packet(response)
                 except ValueError :#Illegal response length or illegal checksum
