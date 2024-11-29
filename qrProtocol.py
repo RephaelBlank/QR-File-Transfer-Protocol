@@ -94,7 +94,7 @@ class QRProtocolSender:
         self.seqnum = 0
         self.acknum = -1
         self.receiveComplete = True
-        self.receiveMessage = ""
+        self.receiveMessage = bytearray()
 
 
     def create_packets(self, data:bytearray,):

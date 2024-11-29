@@ -3,7 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 from handle_file import encode_file
 
 filepath = "C:/Users/refae/network_with_QRCode/file.txt"
-msg = encode_file(filepath) 
+#
+
+msg = encode_file(filepath)
 
 with ThreadPoolExecutor() as executor:
         #future = executor.submit(send_and_recv, s)
@@ -11,9 +13,6 @@ with ThreadPoolExecutor() as executor:
 
         
         data = future.result()
-        
-            
-
         print (data)
         if data is None:
             print ("data not received")

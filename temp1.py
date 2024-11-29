@@ -258,7 +258,7 @@ def send_and_recv(data):
         return result_queue.get() 
     return None 
 
-def send_and_receive_with_protocol(data:str):
+def send_and_receive_with_protocol(data:str)->str:
     """
        Creates two threads for orchestrating a send and receive communication between two computers.\n
        Uses QRProtocolSender for performing logical actions in order with the protocol
@@ -288,9 +288,10 @@ def send_and_receive_with_protocol(data:str):
     except Exception :
         return None
     with protocol_lock:
-        if protocol_sender.get_message():
+        if protocol_sender.get_message()[0]:
             print("Received message:", protocol_sender.get_message())
-            received_messages.append (protocol_sender.get_message())
+            received_messages.append (protocol_sender.get_message()[1])#append the message
+            return protocol_sender.get_message()[1].decode('latin-1')
 
 
     return received_messages
