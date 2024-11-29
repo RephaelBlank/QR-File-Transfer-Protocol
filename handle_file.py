@@ -1,9 +1,6 @@
 import os
-from os import PathLike
-from typing import AnyStr
-
-from sympy import false
-
+import tkinter
+from tkinter import filedialog
 """
 This file handles the processing and encoding of files as well as parsing and saving of data received as files
 The format is as follows #filename#${filename}#data#${data} 
@@ -80,6 +77,21 @@ def decode_file(encoded_file:str)->tuple[bool,str,bytes]:
         return False, str(), encoded_file.encode('latin1')  # invalid data
 
 
+
+def select_file_folder(file:bool)->str:
+    """
+    Handles file dialog requesting user to choose a file if file arg is True or a folder otherwise
+    """
+    root = tkinter.Tk()#create tkinter object for file dialog
+    root.withdraw()#hide window
+
+    if file:#User should choose a file
+        path = filedialog.askopenfilename(title="Select a File")
+    else:#User should choose a folder
+        path = filedialog.askdirectory(title="Select a Folder")
+
+    root.destroy()
+    return  path
 
 """
 if __name__ == "__main__":
