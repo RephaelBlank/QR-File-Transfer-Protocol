@@ -33,7 +33,7 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender,protocol_lock:th
         decoded_text = qreader.detect_and_decode(image=rgb_frame)
         if decoded_text and  decoded_text[0]:#i.e. not none
             try:
-                response =  bytearray(decoded_text[0].encode('utf-8'))
+                response =  bytearray(decoded_text[0].encode('shift-jis'))
                 with protocol_lock:
                     protocol_sender.handle_response_state(response)
                     if not protocol_sender.toSend and protocol_sender.receiveComplete and protocol_sender.anyDataReceive:  # nothing more to send and message was received
@@ -71,11 +71,11 @@ def create_and_present_qr_with_protocol(data: bytearray,root:tk):
         version=3,  # Controls the size of the QR code
         box_size=10,  # Size of each box in the QR code grid
         border=10,  # Width of the border around the QR code
-        error_correction=qrcode.constants.ERROR_CORRECT_M  # High error correction level
+        error_correction=qrcode.constants.ERROR_CORRECT_M# High error correction level
     )
     # Add data to the QR code
-    qr.add_data(data.decode("utf-8") )
-    print("packet sent: " + data.decode("utf-8"))
+    qr.add_data(data.decode("shift-jis").encode('shift-jis').decode('shift-jis') )
+    print("packet sent: " + data.decode("shift-jis"))
     qr.make(fit=True)  # Adjusts dimensions to fit data
 
     # Generate the QR code image with specified colors
@@ -138,7 +138,7 @@ def send_and_receive_with_protocol(data:str)->str:
        """
 
     protocol_sender = QRProtocolSender()
-    protocol_sender.new_data(bytearray(data.encode('utf-8')))  # Initialize the protocol with data
+    protocol_sender.new_data(bytearray(data.encode('shift-jis')))  # Initialize the protocol with data
     protocol_sender.handle_response_state(bytearray(0))
     protocol_lock = threading.Lock()#used for ensuring that both threads dont create a race condition
     transmit_thread = threading.Thread(
@@ -161,7 +161,7 @@ def send_and_receive_with_protocol(data:str)->str:
     with protocol_lock:
         if protocol_sender.get_message()[0]:
             print("Received message:", protocol_sender.get_message())
-            return protocol_sender.get_message()[1].decode('utf-8')
+            return protocol_sender.get_message()[1].decode('shift-jis')
 
 
 

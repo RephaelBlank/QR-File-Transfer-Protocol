@@ -13,7 +13,7 @@ def encode_file (filepath:str) -> str:
     filename = os.path.basename(filepath)
     with open (filepath, "rb") as file:
         file_data = file.read()
-    return "#filename#"+ filename + "#data#" + file_data.decode('utf-8')
+    return "#filename#"+ filename + "#data#" + file_data.decode('shift-jis')
 
 def decoded_file(messages: list, base_dir):
     """
@@ -66,15 +66,15 @@ def decoded_file(messages: list, base_dir):
 
 def decode_file(encoded_file:str)->tuple[bool,str,bytes]:
     if not encoded_file.startswith("#filename#") or "#data#" not in encoded_file:#data format is incorrect
-        return False, str(), encoded_file.encode('utf-8')  # invalid data
+        return False, str(), encoded_file.encode('shift-jis')  # invalid data
     try:#try pasrsind the data correctyly
         dataparts = encoded_file.split("#data#",maxsplit=1)#split based on data seperator once, the filename cant contain # so #data# will appear for the first time as our separator
         filename = dataparts[0].replace("#filename#","",1)#replace the special mark
-        data = dataparts[1].encode('utf-8')
+        data = dataparts[1].encode('shift-jis')
         return True, filename, data
     except Exception as e:
         print("Error during data parsing")
-        return False, str(), encoded_file.encode('utf-8')  # invalid data
+        return False, str(), encoded_file.encode('shift-jis')  # invalid data
 
 
 
