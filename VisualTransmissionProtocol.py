@@ -25,8 +25,8 @@ Control packet is one of the packets defined at the enum ProtocolSpecialPacket
 
 Regular packet format is as follows
 
-bytes 0-1 used for sequence number
-bytes 2-3 used for acknowledgment number
+bytes 0-1 used for sequence number each byte can go up to 127 
+bytes 2-3 used for acknowledgment number each byte can go up to 127 
 bytes 4-28 used for data
 byte 29 - checksum
 
@@ -145,9 +145,9 @@ class QRProtocolSender:
         Stores the packet in the send buffer.
         :return:
         """
-        seqnum_bytes = self.seqnum.to_bytes(2,byteorder='big')
+        seqnum_bytes = (int(self.seqnum/128)).to_bytes(1,byteorder='big')+ (self.seqnum%128).to_bytes(1,byteorder='big')
         try:
-            acknum_bytes = self.acknum.to_bytes(2,byteorder='big')
+            acknum_bytes = (int(self.acknum/128)).to_bytes(1,byteorder='big')+ (self.acknum%128).to_bytes(1,byteorder='big')
         except Exception:#can rose when acknum is negative
             acknum_bytes = bytes(2)#compensate by putting zeros
         if ack == True:
@@ -169,8 +169,8 @@ class QRProtocolSender:
         if len(response)<30:
             raise ValueError("Error: Too short packet")
 
-        seqnum= int.from_bytes(response[0:2],byteorder='big')
-        acknum= int.from_bytes(response[2:4],byteorder='big')
+        seqnum= int.from_bytes(response[0:1],byteorder='big') * 128 + int.from_bytes(response[1:2],byteorder='big')  #msb*128 + lsb
+        acknum= int.from_bytes(response[2:3],byteorder='big') * 128 + int.from_bytes(response[3:4],byteorder='big')  #msb*128 + lsb
         if not ack:
             data = bytearray(response[4:self.buffer_size-1]).rstrip(b'\x00')
         else:

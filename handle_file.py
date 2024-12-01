@@ -15,7 +15,7 @@ def encode_file (filepath:str) -> str:
     filename = os.path.basename(filepath)
     with open (filepath, "rb") as file:
         file_data = file.read()
-    return "#filename#"+ filename + "#data#" + b64.b32encode(file_data).decode('utf-8')
+    return "#filename#"+ filename + "#data#" + b64.b64encode(file_data).decode('utf-8')
 
 
 def decode_file(encoded_file:str)->tuple[bool,str,bytes]:
@@ -25,7 +25,7 @@ def decode_file(encoded_file:str)->tuple[bool,str,bytes]:
     try:#try pasrsind the data correctyly
         dataparts = encoded_file.split("#data#",maxsplit=1)#split based on data seperator once, the filename cant contain # so #data# will appear for the first time as our separator
         filename = dataparts[0].replace("#filename#","",1)#replace the special mark
-        data = b64.b32decode( dataparts[1].encode('utf-8'))
+        data = b64.b64decode( dataparts[1].encode('utf-8'))
         return True, filename, data
 
     except Exception as e:

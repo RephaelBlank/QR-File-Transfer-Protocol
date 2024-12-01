@@ -73,7 +73,11 @@ def create_and_present_qr_with_protocol(data: bytearray,root:tk):
         error_correction=qrcode.constants.ERROR_CORRECT_M# High error correction level
     )
     # Add data to the QR code
-    qr.add_data(data.decode("utf-8"))
+    try:
+        qr.add_data(data.decode("utf-8"))
+    except Exception as e:
+        print(e)
+        print(data)
     print("packet sent: " + data.decode("utf-8"))
     qr.make(fit=True)  # Adjusts dimensions to fit data
 
