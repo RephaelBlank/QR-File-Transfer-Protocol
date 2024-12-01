@@ -12,7 +12,7 @@ import time
 import threading
 import queue
 
-from qrProtocol import QRProtocolSender
+from VisualTransmissionProtocol import QRProtocolSender
 def handle_scan (result_queue, timeout =3):
     qreader = QReader()
     cap = cv2.VideoCapture(0)

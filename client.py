@@ -1,5 +1,5 @@
 from handle_file import decode_file, select_file_folder
-from temp1 import send_and_recv, handle_scan, send_and_receive_with_protocol, handle_scan_with_protocol
+from QrAndCameraProtocol import send_and_recv, handle_scan, send_and_receive_with_protocol, handle_scan_with_protocol
 import queue 
 import threading
 from concurrent.futures import ThreadPoolExecutor

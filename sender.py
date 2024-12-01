@@ -1,5 +1,5 @@
-from qrProtocol import QRProtocolSender , ProtocolState
-from temp1 import send_and_recv
+from VisualTransmissionProtocol import QRProtocolSender , ProtocolState
+from QrAndCameraProtocol import send_and_recv
 from concurrent.futures import ThreadPoolExecutor
 
 def sender(): 
