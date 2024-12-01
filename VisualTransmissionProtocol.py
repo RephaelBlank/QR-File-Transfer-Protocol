@@ -110,7 +110,7 @@ class QRProtocolSender:
 
     def calculate_checksum(self, packet:bytearray)->bytes:
         """
-        Calculate packets check sum, equals sum of all byte as unsigned chars module 256\n
+        Calculate packets check sum, equals sum of all byte as unsigned chars module 128\n
         Raises ValueError if packet len isn't 29\n
         Args:
             packet:
@@ -122,7 +122,7 @@ class QRProtocolSender:
         if len(packet) != self.buffer_size-1:
             raise ValueError(f"Error: expected buffer len {self.buffer_size-1}, but got {len(packet)}.")
         for i in range(0,self.buffer_size-1 , 1):
-            sum = (sum +packet[i])%256
+            sum = (sum +packet[i])%128
         print( "length: " + str(len(sum.to_bytes(length=1,byteorder='big'))) + "val" +str(sum.to_bytes(length=1,byteorder='big')))
         return sum.to_bytes(length=1,byteorder='big')
 
@@ -178,7 +178,7 @@ class QRProtocolSender:
         checksum = self.calculate_checksum(response[0:self.buffer_size-1])#calculate the received packet checksum
         received_checksum = int.to_bytes(response[29],length=1,byteorder='big')
         if checksum != received_checksum:#Compare calculated checksum to received packet checksum
-            print("ERROR: Expected checksum: "+ checksum.decode('Latin-1')+ " Received checksum: " + received_checksum.decode('Latin-1'))
+            print("ERROR: Expected checksum: "+ checksum.decode('url-8')+ " Received checksum: " + received_checksum.decode('url-8'))
             raise ValueError("Error: Incorrect checksum")
         return seqnum,acknum,data,checksum
 
