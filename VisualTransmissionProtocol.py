@@ -178,7 +178,7 @@ class QRProtocolSender:
         checksum = self.calculate_checksum(response[0:self.buffer_size-1])#calculate the received packet checksum
         received_checksum = int.to_bytes(response[29],length=1,byteorder='big')
         if checksum != received_checksum:#Compare calculated checksum to received packet checksum
-            print("ERROR: Expected checksum: "+ checksum.decode('shift-jis')+ " Received checksum: " + received_checksum.decode('shift-jis'))
+            print("ERROR: Expected checksum: "+ checksum.decode('utf-8')+ " Received checksum: " + received_checksum.decode('utf-8'))
             raise ValueError("Error: Incorrect checksum")
         return seqnum,acknum,data,checksum
 
