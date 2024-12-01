@@ -28,6 +28,11 @@ class TimeoutManager:
             self.timeout += extra_time
             print(f"Timeout extended to: {self.timeout} seconds")
 
+    def change_timeout (self, new_time): 
+        with self.lock: 
+            self.timeout = new_time 
+            print(f"Timeout extended to: {self.timeout} seconds")
+
 
 def handle_scan (result_queue, timeout =3):
     qreader = QReader()
@@ -78,6 +83,8 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
                     print ("Current state: "+ protocol_sender.state.name)
                     timeout_manager.extend_timeout(1)
                 print("Message received:"+ decoded_text[0] + " at:"+str(time.time()-start_time))
+                if decoded_text[0] == "STOPACK" or decoded_text[0] == "STOPSYNACK": 
+                    timeout_manager.change_timeout (0)
                 result_queue.put(decoded_text[0])
 
             except Exception as e:
