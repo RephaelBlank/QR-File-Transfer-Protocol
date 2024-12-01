@@ -13,6 +13,22 @@ import threading
 import queue
 
 from qrProtocol import QRProtocolSender
+
+class TimeoutManager:
+    def __init__(self, initial_timeout):
+        self.timeout = initial_timeout
+        self.lock = threading.Lock()
+
+    def get_timeout(self):
+        with self.lock:  
+            return self.timeout
+
+    def extend_timeout(self, extra_time):
+        with self.lock:  
+            self.timeout += extra_time
+            print(f"Timeout extended to: {self.timeout} seconds")
+
+
 def handle_scan (result_queue, timeout =3):
     qreader = QReader()
     cap = cv2.VideoCapture(0)
@@ -37,7 +53,7 @@ def handle_scan (result_queue, timeout =3):
     cap.release()
     cv2.destroyAllWindows()
 
-def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:queue,protocol_lock:threading.Lock, timeout:int = 50):
+def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:queue,protocol_lock:threading.Lock,timeout_manager: TimeoutManager):
     """
     Handles scan including parsing of packets
     """
@@ -45,7 +61,7 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
     qreader = QReader()
     cap = cv2.VideoCapture(0)#start capture
     start_time = time.time()
-    while time.time() - start_time < timeout:
+    while time.time() - start_time < timeout_manager.get_timeout():
         ret, frame = cap.read()#capture frame
         if not ret:
             break
@@ -60,6 +76,7 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender, result_queue:qu
                 with protocol_lock:
                     protocol_sender.handle_response_state(response)
                     print ("Current state: "+ protocol_sender.state.name)
+                    timeout_manager.extend_timeout(1)
                 print("Message received:"+ decoded_text[0] + " at:"+str(time.time()-start_time))
                 result_queue.put(decoded_text[0])
 
@@ -206,7 +223,7 @@ def transmit_with_timeout(data,result_queue, timeout=6):
 
     return confirmation_received
 
-def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result_queue,protocol_lock:threading.Lock  ,timeout=50):
+def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result_queue,protocol_lock:threading.Lock  ,timeout_manager: TimeoutManager):
     """
       Displays packets as QR codes and handles responses using the protocol.
       """
@@ -217,7 +234,7 @@ def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result
     start_time = time.time()
     confirmation_received = False
 
-    while time.time() - start_time < timeout:
+    while time.time() - start_time < timeout_manager.get_timeout():
         if not result_queue.empty():#Need care
             confirmation_received = True
             #print("Message confirmed by receiver.")
@@ -226,7 +243,7 @@ def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender, result
         #generate new packet to continue communications
         with protocol_lock:
             packet = protocol_sender.get_send_packet()
-            if packet:
+            if packet: 
                 create_and_present_qr_with_protocol(packet, root)
 
         root.update()
@@ -264,6 +281,7 @@ def send_and_receive_with_protocol(data:str)->str:
        Uses QRProtocolSender for performing logical actions in order with the protocol
        """
     received_messages = []
+    timeout_manager = TimeoutManager (initial_timeout = 40)
     
     protocol_sender = QRProtocolSender()
     protocol_sender.new_data(bytearray(data.encode('latin1')))  # Initialize the protocol with data
@@ -271,11 +289,11 @@ def send_and_receive_with_protocol(data:str)->str:
     result_queue = queue.Queue()
     protocol_lock = threading.Lock()#used for ensuring that both threads dont create a race condition
     transmit_thread = threading.Thread(
-        target=transmit_with_timeout_with_protocol, args=(protocol_sender, result_queue,protocol_lock)
+        target=transmit_with_timeout_with_protocol, args=(protocol_sender, result_queue,protocol_lock, timeout_manager)
     )
 
     scan_thread = threading.Thread(
-        target=handle_scan_with_protocol, args=( protocol_sender, result_queue,protocol_lock)
+        target=handle_scan_with_protocol, args=( protocol_sender, result_queue,protocol_lock, timeout_manager)
     )
 
     scan_thread.start()
