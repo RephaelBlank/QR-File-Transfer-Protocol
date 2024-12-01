@@ -123,6 +123,7 @@ class QRProtocolSender:
             raise ValueError(f"Error: expected buffer len {self.buffer_size-1}, but got {len(packet)}.")
         for i in range(0,self.buffer_size-1 , 1):
             sum = (sum +packet[i])%256
+        print( "length: " + str(len(sum.to_bytes(length=1,byteorder='big'))) + "val" +str(sum.to_bytes(length=1,byteorder='big')))
         return sum.to_bytes(length=1,byteorder='big')
 
     def new_data(self, data:bytearray):
