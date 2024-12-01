@@ -1,7 +1,6 @@
 from handle_file import decode_file, select_file_folder
-from QrAndCameraProtocol import send_and_recv, handle_scan, send_and_receive_with_protocol, handle_scan_with_protocol
-import queue 
-import threading
+from QrAndCameraProtocol import   send_and_receive_with_protocol
+
 from concurrent.futures import ThreadPoolExecutor
 import os
 
@@ -11,8 +10,8 @@ if __name__ == "__main__":
 
    with ThreadPoolExecutor() as executor:
         future   = executor.submit(send_and_receive_with_protocol,str() )#msg)
-        data = future.result()
-        ok, file_name, data =  decode_file(data)
+        data_rec:str = future.result()
+        ok, file_name, data =  decode_file(data_rec)
         if ok:
             folder_path =  select_file_folder(file=False)#ask user for directory to save file at
             try:

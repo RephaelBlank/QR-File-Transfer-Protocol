@@ -15,7 +15,7 @@ whilst sending a packet wait for the other computer to echo it when echo is reci
 
 When data sent is finished
 Send the following bytes 0x01 + 'STOP' (converted to bytes)
-wait for response "STOPACC"  from other computer
+wait for response "STOPACK"  from other computer
 after receiving response Send following bytes "STOPSYNACK"
 
 Data is sent as at most 30 bytes packets
@@ -72,16 +72,17 @@ class QRProtocolSender:
     get_send_packet(self): Returns the current packet to be shown via QR. Call it in a loop.\n
     get_message(self): Used for checking the current state of the message received from the other computer.
     """
-    state:ProtocolState
-    buffer_size:int
-    sendBuffer:bytearray
-    receiveBuffer:bytearray
-    packets: List[bytearray]
-    receiveMessage:bytearray
-    toSend:bool
-    receiveComplete:bool
-    seqnum:int
-    acknum:int
+    state:ProtocolState#Current state
+    buffer_size:int#defualt buffersize
+    sendBuffer:bytearray#qr data to show
+    receiveBuffer:bytearray#latest received data
+    packets: List[bytearray]#list of packets to send
+    receiveMessage:bytearray#total message received
+    toSend:bool#any data to send
+    receiveComplete:bool#Complete message received
+    anyDataReceive:bool#any data received
+    seqnum:int#current sequence number of packet
+    acknum:int#last acknowledge number of packet
 
 
     def __init__(self):
@@ -94,6 +95,7 @@ class QRProtocolSender:
         self.seqnum = 0
         self.acknum = -1
         self.receiveComplete = True
+        self.anyDataReceive = False
         self.receiveMessage = bytearray()
 
 
@@ -268,7 +270,8 @@ class QRProtocolSender:
                     resseq , resack, resmessege,checksum = self.parse_response_packet(response,ack=True)#parse ack message
                 except ValueError :#Illegal response length or illegal checksum
                     return
-                if resack == self.seqnum:#packet was recived propertly great
+                if resack == self.seqnum:#packet was received propertly
+                    self.anyDataReceive = True#signal some data was received
                     self.seqnum = self.seqnum+1#update current index packet to send
                     if self.seqnum >= len(self.packets):#all packets were sent
                         self.state = ProtocolState.DATA_SENT
@@ -295,6 +298,7 @@ class QRProtocolSender:
                 except ValueError as error:  # Illegal response length or illegal checksum
                     return
                 if resseq == self.acknum+1 :#Segment received is the next expected segment
+                    self.anyDataReceive = True#signal some data was received
                     self.receiveMessage= self.receiveMessage + resmessege#append to the total message
                     self.acknum = self.acknum+1
                     self.set_send_buffer_message(ack=True)

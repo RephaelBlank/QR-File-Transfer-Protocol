@@ -1,5 +1,5 @@
 from handle_file import encode_file, select_file_folder
-from QrAndCameraProtocol import send_and_recv, send_and_receive_with_protocol
+from QrAndCameraProtocol import  send_and_receive_with_protocol
 from concurrent.futures import ThreadPoolExecutor
 #filepath:str =r"C:\OpenAC\SadnaProjcet\ron.txt"
 full_message = ["msg 1 is a very long msg more then 30 chars which should be split to different packets.","msg 2","msg 3"]
