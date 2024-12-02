@@ -14,7 +14,7 @@ import queue
 from VisualTransmissionProtocol import QRProtocolSender
 
 class TimeoutManager:
-    def __init__(self, initial_timeout = 900):
+    def __init__(self, initial_timeout = 5):
         self.timeout = initial_timeout
         self.lock = threading.Lock()
 
@@ -48,7 +48,8 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender,protocol_lock:th
             try:
                 response =  bytearray(decoded_text[0].encode('utf-8'))
                 with protocol_lock:
-                    protocol_sender.handle_response_state(response)
+                    if protocol_sender.handle_response_state(response): 
+                        timeout_manager.extend_timeout (2)
                     if not protocol_sender.toSend and protocol_sender.receiveComplete and protocol_sender.anyDataReceive:  # nothing more to send and message was received
                         time.sleep(5)  # allow for other computer to receive STOPACK
                         break  # Stop scanning qrs
@@ -153,7 +154,7 @@ def send_and_receive_with_protocol(data:str)->str:
        Creates two threads for orchestrating a send and receive communication between two computers.\n
        Uses QRProtocolSender for performing logical actions in order with the protocol
        """
-    timeout_manager = TimeoutManager (initial_timeout = 20)
+    timeout_manager = TimeoutManager (initial_timeout = 30)
     protocol_sender = QRProtocolSender()
     protocol_sender.new_data(bytearray(data.encode('utf-8')))  # Initialize the protocol with data
     protocol_sender.handle_response_state(bytearray(0))
