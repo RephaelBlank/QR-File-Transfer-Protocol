@@ -13,7 +13,21 @@ import queue
 
 from VisualTransmissionProtocol import QRProtocolSender
 
-def handle_scan_with_protocol (protocol_sender:QRProtocolSender,protocol_lock:threading.Lock, timeout:int = 900):
+class TimeoutManager:
+    def __init__(self, initial_timeout = 900):
+        self.timeout = initial_timeout
+        self.lock = threading.Lock()
+
+    def get_timeout(self):
+        with self.lock:  
+            return self.timeout
+
+    def extend_timeout(self, extra_time):
+        with self.lock:  
+            self.timeout += extra_time
+            print(f"Timeout extended to: {self.timeout} seconds")
+
+def handle_scan_with_protocol (protocol_sender:QRProtocolSender,protocol_lock:threading.Lock, timeout_manager: TimeoutManager):
     """
     Handles scan including parsing of packets
     """
@@ -21,7 +35,7 @@ def handle_scan_with_protocol (protocol_sender:QRProtocolSender,protocol_lock:th
     qreader = QReader()
     cap = cv2.VideoCapture(0)#start capture
     start_time = time.time()
-    while time.time() - start_time < timeout:
+    while time.time() - start_time <timeout_manager.get_timeout():
         ret, frame = cap.read()#capture frame
         if not ret:
             break
@@ -106,7 +120,7 @@ def create_and_present_qr_with_protocol(data: bytearray,root:tk):
 
 
 
-def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender,protocol_lock:threading.Lock  ,timeout:int=900):
+def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender,protocol_lock:threading.Lock  ,timeout_manager: TimeoutManager):
     """
       Displays packets as QR codes and handles responses using the protocol.
       """
@@ -116,7 +130,7 @@ def transmit_with_timeout_with_protocol(protocol_sender:QRProtocolSender,protoco
         create_and_present_qr_with_protocol(protocol_sender.get_send_packet(),root)
     start_time = time.time()
 
-    while time.time() - start_time < timeout:
+    while time.time() - start_time < timeout_manager.get_timeout():
 
 
         #generate new packet to continue communications
@@ -139,17 +153,17 @@ def send_and_receive_with_protocol(data:str)->str:
        Creates two threads for orchestrating a send and receive communication between two computers.\n
        Uses QRProtocolSender for performing logical actions in order with the protocol
        """
-
+    timeout_manager = TimeoutManager (initial_timeout = 20)
     protocol_sender = QRProtocolSender()
     protocol_sender.new_data(bytearray(data.encode('utf-8')))  # Initialize the protocol with data
     protocol_sender.handle_response_state(bytearray(0))
     protocol_lock = threading.Lock()#used for ensuring that both threads dont create a race condition
     transmit_thread = threading.Thread(
-        target=transmit_with_timeout_with_protocol, args=(protocol_sender ,protocol_lock)
+        target=transmit_with_timeout_with_protocol, args=(protocol_sender ,protocol_lock, timeout_manager)
     )
 
     scan_thread = threading.Thread(
-        target=handle_scan_with_protocol, args=( protocol_sender ,protocol_lock)
+        target=handle_scan_with_protocol, args=( protocol_sender ,protocol_lock, timeout_manager)
     )
 
     scan_thread.start()
