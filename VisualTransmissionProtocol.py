@@ -9,16 +9,16 @@ sender side:
 When trying to send(RTS) first packet is 'RTSSIG'
 then after receiving from the other computer a 'RTSACK'
 Send  'START'
-then start sending data (40 chars/  bytes at a time at most)
+then start sending data (60 chars/  bytes at a time at most)
 
-whilst sending a packet wait for the other computer to echo it when echo is recived go to next 30 bytes packet.
+whilst sending a packet wait for the other computer to echo it when echo is received go to next 60 bytes packet.
 
 When data sent is finished
 Send the following bytes 0x01 + 'STOP' (converted to bytes)
 wait for response "STOPACK"  from other computer
 after receiving response Send following bytes "STOPSYNACK"
 
-Data is sent as at most 50 bytes packets
+Data is sent as at most 60 bytes packets
 
 Control packet is one of the packets defined at the enum ProtocolSpecialPacket
 
@@ -27,8 +27,8 @@ Regular packet format is as follows
 
 bytes 0-1 used for sequence number each byte can go up to 127 
 bytes 2-3 used for acknowledgment number each byte can go up to 127 
-bytes 4-48 used for data
-byte 49 - checksum
+bytes 4-58 used for data
+byte 59 - checksum
 
 """
 class ProtocolState(Enum):
@@ -86,7 +86,7 @@ class QRProtocolSender:
 
 
     def __init__(self):
-        self.buffer_size = 50  # Packet size in bytes
+        self.buffer_size = 60  # Packet size in bytes
         self.state = ProtocolState.IDLE
         self.sendBuffer = bytearray(self.buffer_size)
         self.receiveBuffer = bytearray(self.buffer_size)
@@ -111,10 +111,10 @@ class QRProtocolSender:
     def calculate_checksum(self, packet:bytearray)->bytes:
         """
         Calculate packets check sum, equals sum of all byte as unsigned chars module 128\n
-        Raises ValueError if packet len isn't 49\n
+        Raises ValueError if packet len isn't buffersize-1\n
         Args:
             packet:
-            bytearray size of 49\n
+            bytearray size of buffersize-1\n
         Returns:
         checksum byte
         """
@@ -140,7 +140,7 @@ class QRProtocolSender:
         self.state = ProtocolState.RTS_SEND_START
     def set_send_buffer_message(self, ack = False):
         """
-        Creates a packet to send with the seqnum and acknum as the first 4bytes and 25 bytes of data and ads the checksum.\n
+        Creates a packet to send with the seqnum and acknum as the first 4bytes and 55 bytes  of data and ads the checksum.\n
         Stores the packet in the send buffer.
         :return:
         """
@@ -157,11 +157,11 @@ class QRProtocolSender:
         try:
             self.sendBuffer=bytearray(seqnum_bytes+acknum_bytes+data_padded+ self.calculate_checksum(bytearray(seqnum_bytes+acknum_bytes+data_padded)))
         except ValueError  :
-            self.sendBuffer = bytearray([1]*30)#create illegal packet
+            self.sendBuffer = bytearray([1]*self.buffer_size)#create illegal packet
     def parse_response_packet(self,response:bytearray,ack = False)-> tuple[int,int,bytearray,bytes]:
         """
         Parses the packet and extracts the seqnum,acknum and the message
-        :param response: standard 30 byte packet
+        :param response: standard 60 byte packet
         :param ack: Marks if packet is an ack packet or not
         :return: seqnum,acknum, data,checksum
         """
