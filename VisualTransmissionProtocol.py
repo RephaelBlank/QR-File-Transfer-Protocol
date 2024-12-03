@@ -302,6 +302,7 @@ class QRProtocolSender:
                     self.receiveMessage= self.receiveMessage + resmessege#append to the total message
                     self.acknum = self.acknum+1
                     self.set_send_buffer_message(ack=True)
+                    return True
                 else:#error packet
                     self.set_send_buffer_message(ack=True)#send packet with last seq received
 
