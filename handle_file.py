@@ -2,6 +2,8 @@ import os
 import tkinter
 from tkinter import filedialog
 import base64 as b64
+import sys
+sys.coinit_flags = 2#this segment is used to ensure the file explorer dialog happens (fixes a bug in tkinter)
 
 """
 This file handles the processing and encoding of files as well as parsing and saving of data received as files
